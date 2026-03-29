@@ -150,7 +150,7 @@ class VersionCalculator {
         final longBranch = git.fullBranch
 
         String branch = longBranch != null ? Repository.shortenRefName(longBranch) : ''
-        if (branch in spec.branches.suffixExemptedBranches.get()) {
+        if (branch in spec.branches.suffixExemptedBranches.get() || spec.branches.suffixExemptedBranchPatterns.getOrNull()?.any { branch ==~ /$it/ }) {
             // Branch is exempted from suffix
             return null
         }

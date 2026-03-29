@@ -107,6 +107,12 @@ class ChangelogGenerator {
     private static void buildCommitMessage(StringBuilder builder, String message, String continueHeader) {
         // Assume the current line in the builder already contains the initial part of the line (with the version)
 
+        // Some commits for some reason are having the LF trimmed off
+        // If no LF exists just append it to the end of the message
+        if (!message.endsWith('\n')) {
+            message += '\n'
+        }
+
         // Assume that the message contains at least one LF
         // If the first and last LF in the message are at the same position, then there is only one singular LF
         if (message.indexOf('\n') == message.lastIndexOf('\n')) {

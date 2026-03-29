@@ -44,7 +44,6 @@ import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.tasks.AbstractPublishToMaven
 import org.gradle.api.services.BuildServiceSpec
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.Nested
 import org.gradle.plugins.signing.SigningExtension
 import org.gradle.plugins.signing.SigningPlugin
 
@@ -52,13 +51,15 @@ import javax.inject.Inject
 
 @CompileStatic
 abstract class GradleUtilsExtension {
-    private transient Project project
+    private final Project project
     private final Directory rootProjectDir
     private final Provider<String> projectVersion
     private final Provider<String> calculatedVersion
+    private final Provider<String> finalVersion
     @PackageScope
     final Provider<GitInfoValueSource.GitInfo> rawInfo
     private final Provider<Map<String, String>> gitInfo
+    private final VersionSpec versionSpec
 
     @Inject
     GradleUtilsExtension(Project project, ProjectLayout layout, ObjectFactory objects, ProviderFactory providers) {
@@ -68,12 +69,17 @@ abstract class GradleUtilsExtension {
         gitRoot.convention(layout.projectDirectory)
         getEnableMavenPublicationSummary().convention(true);
 
+        this.versionSpec = objects.newInstance(VersionSpec)
+
         this.calculatedVersion = providers.of(VersionCalculatorValueSource) {
             it.parameters {
                 it.workingDirectory.set(gitRoot)
                 it.versionConfiguration.set(getVersionSpec())
             }
         }
+
+        var versionProperty = providers.gradleProperty('version')
+        this.finalVersion = versionProperty.orElse(calculatedVersion)
 
         this.rawInfo = providers.of(GitInfoValueSource) {
             it.parameters {
@@ -122,10 +128,6 @@ abstract class GradleUtilsExtension {
     @DSLProperty
     abstract DirectoryProperty getGitRoot()
 
-    @Nested
-    @DSLProperty
-    abstract VersionSpec getVersionSpec()
-
     @Input
     @DSLProperty
     abstract Property<Boolean> getShouldSign()
@@ -143,12 +145,16 @@ abstract class GradleUtilsExtension {
         return new Object() {
             @Override
             String toString() {
-                return calculatedVersion.get()
+                return finalVersion.get()
             }
         }
     }
 
-    void version(Action<? extends VersionSpec> configureAction) {
+    VersionSpec getVersionSpec() {
+        return versionSpec
+    }
+
+    void version(Action<? super VersionSpec> configureAction) {
         configureAction.execute(versionSpec)
     }
 
@@ -156,13 +162,13 @@ abstract class GradleUtilsExtension {
         return gitInfo.get()
     }
 
-    Action<? extends MavenArtifactRepository> getPublishingMaven(File defaultFolder = rootProjectDir.file('repo').asFile) {
+    Action<MavenArtifactRepository> getPublishingMaven(File defaultFolder = rootProjectDir.file('repo').asFile) {
         return GradleUtils.setupSnapshotCompatiblePublishing(projectVersion, 'https://maven.neoforged.net/releases',
                 defaultFolder, rootProjectDir.file('snapshot').asFile)
     }
 
     @SuppressWarnings('GrMethodMayBeStatic')
-    Action<? extends MavenArtifactRepository> getMaven() {
+    Action<MavenArtifactRepository> getMaven() {
         return GradleUtils.getForgeMaven()
     }
 
@@ -177,7 +183,7 @@ abstract class GradleUtilsExtension {
                 container.sonatype {
                     it.username.set(System.getenv('SONATYPE_USER') ?: '')
                     it.password.set(System.getenv('SONATYPE_PASSWORD') ?: '')
-                    it.nexusUrl.set(URI.create('https://s01.oss.sonatype.org/service/local/'))
+                    it.nexusUrl.set(URI.create('https://ossrh-staging-api.central.sonatype.com/service/local/'))
                 }
             }
         }
